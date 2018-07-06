@@ -7,37 +7,43 @@ use feature 'signatures';
 use Getopt::Long;
 use YAML qw( Load LoadFile );
 use Data::Dumper;
+use MIME::Lite;
 
 GetOptions(
     'f|config=s' => \my $config,
+    'from=s'     => \my $mail_from,
 );
 
-my $rules = Load(<<'YAML');
+my $config = Load(<<'YAML');
 ---
-- name: "errors"
-  re:
-    - "error"
-    - "fatal"
-  recipient:
-    - developer@example.com
-    - admin@example.com
-  category: "Errors"
-- name: "warnings"
-  re:
-    - "warning"
-  recipient:
-    - developer@example.com
-- name: "Unknown input"
-  unmatched: 1
-  recipient:
-    - developer@example.com
-- name: "Send to other process"
-  recipient:
-    - "| mailx -s \"Some more data\" nobody@example.com"
-- name: "Send to file"
-  recipient:
-    - "> log/file1.log"
+from: cron@example.com
+grep:
+  - name: "errors"
+    re:
+      - "error"
+      - "fatal"
+    recipient:
+      - developer@example.com
+      - admin@example.com
+    category: "Errors"
+  - name: "warnings"
+    re:
+      - "warning"
+    recipient:
+      - developer@example.com
+  - name: "Unknown input"
+    unmatched: 1
+    recipient:
+      - developer@example.com
+  - name: "Send to other process"
+    recipient:
+      - "| mailx -s \"Some more data\" nobody@example.com"
+  - name: "Send to file"
+    recipient:
+      - "> log/file1.log"
 YAML
+my $rules = $config->{grep};
+$mail_from ||= $config->{from};
 
 my %recipients;
 my ($unmatched) = grep { $_->{unmatched} } @$rules;
@@ -90,7 +96,22 @@ for my $r (sort keys %recipients) {
     };
     warn "$r\n$body\n--";
     
-    # send mail
+    if( $r =~ /^[>|]/ ) {
+        die "File / pipe output is not yet supported";
+    } else {
+        # Send SMPT mail
+        my $msg = MIME::Lite->new(
+            From     => $mail_from,
+            To       => $r,
+            #Cc       => 'some@other.com, some@more.com',
+            Subject  => 'Helloooooo, nurse!',
+            Data     => $body,
+            #Type     => 'image/gif',
+            #Encoding => 'base64',
+            #Path     => 'hellonurse.gif'
+        );
+        $msg->send; # send via default
+    };
 }
 
 =head1 SYNOPSIS
