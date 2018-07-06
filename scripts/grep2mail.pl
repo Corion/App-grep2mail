@@ -55,6 +55,11 @@ sub keep_line( $rule ) {
     };
 }
 
+# The current implementation loops over each group and each RE for each
+# line of input. This is not horrible, but it means that each RE will be
+# executed for each line of input and each input line will be scanned multiple
+# times.
+#
 # First optimization stage, put all regular expressions into one large
 # regular expression, to stay within the RE engine for each line:
 #
