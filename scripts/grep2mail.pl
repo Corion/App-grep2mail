@@ -1,0 +1,135 @@
+#!perl -w
+use strict;
+use Filter::signatures;
+no warnings 'experimental::signatures';
+use feature 'signatures';
+use Getopt::Long;
+use YAML qw( Load LoadFile );
+use Data::Dumper;
+
+GetOptions(
+    'f|config=s' => \my $config,
+);
+
+my $rules = Load(<<'YAML');
+---
+- name: "errors"
+  re:
+    - "error"
+    - "fatal"
+  recipient:
+    - developer@example.com
+    - admin@example.com
+  category: "Errors"
+- name: "warnings"
+  re:
+    - "warning"
+  recipient:
+    - developer@example.com
+- name: "Unknown input"
+  unmatched: 1
+  recipient:
+    - developer@example.com
+- name: "Send to other process"
+  recipient:
+    - "| mailx -s \"Some more data\" nobody@example.com"
+- name: "Send to file"
+  recipient:
+    - "> log/file1.log"
+YAML
+
+my %recipients;
+my ($unmatched) = grep { $_->{unmatched} } @$rules;
+
+sub keep_line( $rule ) {
+    my $group = $rule->{category} || '';
+    for my $recipient (@{ $rule->{recipient}}) {
+        push @{$recipients{ $recipient }->{ $group }}, $_;
+    };
+}
+
+# First optimization stage, put all regular expressions into one large
+# regular expression, to stay within the RE engine for each line:
+#
+# my $combined = join "|", map { my $expr = join "|", map { qr/(?:$_)/ } @{$_->{re}}; qr/(?<$_->{name}>(?=.*?$expr))/ } @rules;
+# if( /$combined/ ) {
+#     my($leftmost) = keys %+;
+# }
+#
+# Later, build a regular expression that tells us whether a line matches at all
+# my $combined = join "|", map { my $expr = join "|", map { qr/(?:$_)/ } @{$_->{re}}; qr/(?<$_->{name}>$expr)/ } @rules;
+# if( /$combined/ ) {
+#     my($leftmost) = keys %+;
+# }
+# If we match that, either we have leftmost-non-overlapping matches and use that
+# directly, or we have an indication whether to try the rules up to the matched
+# group. This will be a second optimization stage.
+
+while( <> ) {
+    my $matched;
+    RULE: for my $rule (@$rules) {
+        RE: for my $re (@{ $rule->{re}}) {
+            if( /$re/ ) {
+                keep_line( $rule );
+                $matched++;
+                # last RE
+                last RULE;
+            };
+        };
+    }
+    if( ! $matched && $unmatched ) {
+        keep_line( $unmatched );
+    };
+}
+
+for my $r (sort keys %recipients) {
+    my $body;
+    for my $section (sort keys %{ $recipients{$r} }) {
+        $body .= join "\n", "$section\n", @{ $recipients{$r}->{$section} }, "";
+    };
+    warn "$r\n$body\n--";
+    
+    # send mail
+}
+
+=head1 SYNOPSIS
+
+=cut
+
+__END__
+
+=head1 CONFIG FILE
+
+  - name: "errors"
+    re:
+      - "error"
+      - "fatal"
+    recipient:
+      - developer@example.com
+      - admin@example.com
+    group: "Errors"
+  - name: "warnings"
+    re:
+      - "warning"
+    recipient:
+      - developer@example.com
+  - unmatched: 1
+    recipient:
+      - developer@example.com
+  # Not yet supported
+  - name: "output summary"
+    section_start:
+      - "OUTPUT SUMMARY"
+    section_end:
+      - "^$"
+    recipient:
+      - operations@example.com
+  - name: "Weird log entry"
+    match:
+      - re: "error happened"
+        context-before: 5
+        context-after: 2
+    recipient:
+      - pager@example.com
+
+=cut
