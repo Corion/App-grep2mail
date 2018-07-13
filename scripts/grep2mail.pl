@@ -94,28 +94,31 @@ while( <> ) {
     };
 }
 
+sub sendmail($mail_from, $recipient, $body) {
+    my $msg = MIME::Lite->new(
+        From     => $mail_from,
+        To       => $recipient,
+        #Cc       => 'some@other.com, some@more.com',
+        Subject  => 'Helloooooo, nurse!',
+        Data     => $body,
+        #Type     => 'image/gif',
+        #Encoding => 'base64',
+        #Path     => 'hellonurse.gif'
+    );
+    $msg->send; # send via default
+}
+
 for my $r (sort keys %recipients) {
     my $body;
     for my $section (sort keys %{ $recipients{$r} }) {
         $body .= join "\n", "$section\n", @{ $recipients{$r}->{$section} }, "";
     };
-    warn "$r\n$body\n--";
     
     if( $r =~ /^[>|]/ ) {
         die "File / pipe output is not yet supported";
     } else {
         # Send SMPT mail
-        my $msg = MIME::Lite->new(
-            From     => $mail_from,
-            To       => $r,
-            #Cc       => 'some@other.com, some@more.com',
-            Subject  => 'Helloooooo, nurse!',
-            Data     => $body,
-            #Type     => 'image/gif',
-            #Encoding => 'base64',
-            #Path     => 'hellonurse.gif'
-        );
-        $msg->send; # send via default
+        sendmail( $mail_form, $r, $body );
     };
 }
 
