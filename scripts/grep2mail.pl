@@ -37,10 +37,14 @@ grep:
       - developer@example.com
   - name: "Send to other process"
     recipient:
-      - "| mailx -s \"Some more data\" nobody@example.com"
+      - "| irc-post --channel #cat-pictures"
+      - "| slack-post --channel #cat-pictures"
+      - "| twitter-post --channel #cat-pictures"
+    re:
+      - "\\bcat.*?\.jpg\b"
   - name: "Send to file"
     recipient:
-      - "> log/file1.log"
+      - ">> log/file1.log"
 YAML
 my $rules = $config->{grep};
 $mail_from ||= $config->{from};
