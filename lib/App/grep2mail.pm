@@ -11,7 +11,28 @@ use MIME::Lite;
 
 use Exporter 'import';
 
+our $VERSION = '0.01';
 our @EXPORT = qw(scan distribute_results);
+
+=head1 NAME
+
+App::grep2mail - functionality for the grep2mail program
+
+=head1 SYNOPSIS
+
+  use App::grep2mail 'scan', 'distribute_results';
+
+  my $config = {
+    { name => 'Error', re => [qr/\berror\b/, qr/\berrors\b/],
+      recipients => ['foo@example.com', 'bar@example.com'] },
+    { name => 'Unmatched', re => [], unmatched => 1,
+      recipients => ['dev@example.com']},
+  };
+
+  my $results = scan( $config );
+  distribute_results( $results );
+
+=cut
 
 sub keep_line( $rule, $recipients ) {
     my $group = $rule->{category} || '';
