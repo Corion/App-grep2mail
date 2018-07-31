@@ -12,6 +12,7 @@ use MIME::Lite;
 GetOptions(
     'f|config=s' => \my $config_file,
     'from=s'     => \my $mail_from,
+    'set=s'      => \my @values,
 );
 
 my $config = Load(<<'YAML');
@@ -48,6 +49,8 @@ grep:
 YAML
 my $rules = $config->{grep};
 $mail_from ||= $config->{from};
+
+# XXX Update config from @values
 
 my ($unmatched) = grep { $_->{unmatched} } @$rules;
 
