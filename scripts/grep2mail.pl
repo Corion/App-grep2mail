@@ -47,6 +47,7 @@ grep:
     recipient:
       - ">> log/file1.log"
 YAML
+
 my $rules = $config->{grep};
 $mail_from ||= $config->{from};
 
@@ -152,6 +153,46 @@ distribute_results( $recipients );
 =cut
 
 __END__
+
+=head1 CONFIGURATION ENTRIES
+
+=over 4
+
+=item C<name>
+
+    name: "Cats"
+
+The name of the rule, highly convenient for debugging and documentation
+
+=item C<re>
+
+    re:
+      - "\\bcats?\\b"
+      - "\\bdogs?\\b"
+
+A single regular expression or a list of regular expressions used for matching.
+Note that backslashes need to be escaped for YAML.
+
+=item C<recipient>
+
+    recipient:
+        - me@example.com
+
+A list of recipients. A recipient can be either an email address or a string
+conforming to the specification of L<open>. If it is the latter, Perl will
+launch the process or file and pipe all matching output to that handle.
+
+Send output to a specific file:
+
+    recipient:
+        - ">> matches.txt"
+
+Launch a process with the output from this rule:
+
+    recipient:
+        - "| send-to-twitter"
+
+=back
 
 =head1 CONFIG FILE
 
