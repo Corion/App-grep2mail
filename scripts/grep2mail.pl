@@ -10,7 +10,7 @@ use Data::Dumper;
 use MIME::Lite;
 
 GetOptions(
-    'f|config=s' => \my $config,
+    'f|config=s' => \my $config_file,
     'from=s'     => \my $mail_from,
 );
 
