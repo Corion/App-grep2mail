@@ -49,13 +49,12 @@ YAML
 my $rules = $config->{grep};
 $mail_from ||= $config->{from};
 
-my %recipients;
 my ($unmatched) = grep { $_->{unmatched} } @$rules;
 
-sub keep_line( $rule ) {
+sub keep_line( $rule, $recipients ) {
     my $group = $rule->{category} || '';
     for my $recipient (@{ $rule->{recipient}}) {
-        push @{$recipients{ $recipient }->{ $group }}, $_;
+        push @{$recipients->{ $recipient }->{ $group }}, $_;
     };
 }
 
@@ -72,6 +71,9 @@ sub keep_line( $rule ) {
 #     my($leftmost) = keys %+;
 # }
 #
+# This tells us all REs that match this line, and by extension all rules that
+# we should handle.
+#
 # Later, build a regular expression that tells us whether a line matches at all
 # my $combined = join "|", map { my $expr = join "|", map { qr/(?:$_)/ } @{$_->{re}}; qr/(?<$_->{name}>$expr)/ } @rules;
 # if( /$combined/ ) {
@@ -81,21 +83,29 @@ sub keep_line( $rule ) {
 # directly, or we have an indication whether to try the rules up to the matched
 # group. This will be a second optimization stage.
 
-while( <> ) {
-    my $matched;
-    RULE: for my $rule (@$rules) {
-        RE: for my $re (@{ $rule->{re}}) {
-            if( /$re/ ) {
-                keep_line( $rule );
-                $matched++;
-                # last RE
-                last RULE;
+# Maybe consider moving this to App::Ack modules
+# Especially the file handling over blindly using <> would be nice
+
+sub scan( $rules, $recipients={} ) {
+    while( <> ) {
+        my $matched;
+        RULE: for my $rule (@$rules) {
+            RE: for my $re (@{ $rule->{re}}) {
+                if( /$re/ ) {
+                    keep_line( $rule );
+                    $matched++;
+                    # last RE
+                    # Maybe add a strategy here to try all matches instead of
+                    # only using the first match
+                    last RULE;
+                };
             };
+        }
+        if( ! $matched && $unmatched ) {
+            keep_line( $unmatched, $recipients );
         };
     }
-    if( ! $matched && $unmatched ) {
-        keep_line( $unmatched );
-    };
+    $recipients
 }
 
 sub sendmail($mail_from, $recipient, $body) {
@@ -112,19 +122,27 @@ sub sendmail($mail_from, $recipient, $body) {
     $msg->send; # send via default
 }
 
-for my $r (sort keys %recipients) {
-    my $body;
-    for my $section (sort keys %{ $recipients{$r} }) {
-        $body .= join "\n", "$section\n", @{ $recipients{$r}->{$section} }, "";
-    };
-    
-    if( $r =~ /^[>|]/ ) {
-        die "File / pipe output is not yet supported";
-    } else {
-        # Send SMPT mail
-        sendmail( $mail_form, $r, $body );
-    };
+sub distribute_results( $recipients ) {
+    for my $r (sort keys %$recipients) {
+        my $body;
+        for my $section (sort keys %{ $recipients->{$r} }) {
+            $body .= join "\n", "$section\n", @{ $recipients->{$r}->{$section} }, "";
+        };
+
+        if( $r =~ /^[>|]/ ) {
+            # We should signal this while reading the configuration, not when
+            # trying to send the results
+            die "File / pipe output is not yet supported";
+        } else {
+            # Send SMPT mail
+            # my $mail_from = $r;
+            sendmail( "Hmmm", $r, $body );
+        };
+    }
 }
+
+my $recipients = scan( $rules );
+distribute_results( $recipients );
 
 =head1 SYNOPSIS
 
