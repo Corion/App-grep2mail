@@ -9,7 +9,7 @@ use Getopt::Long;
 use YAML qw( Load LoadFile );
 use Data::Dumper;
 
-use App::grep2mail (qw( scan distribute_results ));
+use App::grep2mail;
 
 GetOptions(
     'f|config=s' => \my $config_file,
@@ -50,13 +50,16 @@ grep:
       - ">> log/file1.log"
 YAML
 
-my $rules = $config->{grep};
 $mail_from ||= $config->{from};
 
-# XXX Update config from @values
+my $app = App::grep2mail->new(
+    rules     => $config->{grep},
+    mail_from => $mail_from,
+);
 
-my $recipients = scan( $rules );
-distribute_results( $recipients );
+# XXX Update config from @values
+$app->scan();
+$app->flush();
 
 =head1 SYNOPSIS
 

@@ -5,7 +5,7 @@ use Data::Dumper;
 
 use Test::More tests => 1;
 
-use App::grep2mail 'scan';
+use App::grep2mail;
 
 *ARGV = *DATA;
 my $rules = [
@@ -14,7 +14,11 @@ my $rules = [
     { name => 'Empty', re => [], recipients => ['foo', 'dev']},
     { name => 'Unmatched', re => [], unmatched => 1, recipients => ['dev'], category => 'Dev errors' },
 ];
-my $res = scan($rules);
+
+my $app = App::grep2mail->new(
+    rules => $rules
+);
+my $res = $app->scan($rules);
 my $expected = {
     'bar' => {'' => ["[error]     first line\n","[error]     third line\n", "[errors]    fifth line\n"]},
     'baz' => {'' => ["[warning]   second line\n"]},

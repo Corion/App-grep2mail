@@ -2,6 +2,7 @@ package App::grep2mail;
 use 5.010; # we might use named captures
 use strict;
 use warnings;
+use Moo;
 
 use Filter::signatures;
 no warnings 'experimental::signatures';
@@ -37,7 +38,21 @@ and not just mailout.
 
 =cut
 
-sub keep_line( $rule, $recipients ) {
+has 'recipients' => (
+    is => 'ro',
+    default => sub { +{} },
+);
+
+has 'rules' => (
+    is => 'ro',
+    default => sub { [] },
+);
+
+has 'mail_from' => (
+    is => 'ro',
+);
+
+sub keep_line( $self, $rule, $recipients=$self->recipients ) {
     my $group = $rule->{category} || '';
     for my $recipient (@{ $rule->{recipients}}) {
         push @{$recipients->{ $recipient }->{ $group }}, $_;
@@ -72,7 +87,7 @@ sub keep_line( $rule, $recipients ) {
 # Maybe consider moving this to App::Ack modules
 # Especially the file handling over blindly using <> would be nice
 
-sub scan( $rules, $recipients={} ) {
+sub scan( $self, $rules=$self->rules, $recipients=$self->recipients ) {
     my ($unmatched) = grep { $_->{unmatched} } @$rules;
 
     while( <> ) {
@@ -80,7 +95,7 @@ sub scan( $rules, $recipients={} ) {
         RULE: for my $rule (@$rules) {
             RE: for my $re (@{ $rule->{re}}) {
                 if( /$re/ ) {
-                    keep_line( $rule, $recipients );
+                    $self->keep_line( $rule, $recipients );
                     $matched++;
                     # last RE
                     # Maybe add a strategy here to try all matches instead of
@@ -90,18 +105,18 @@ sub scan( $rules, $recipients={} ) {
             };
         }
         if( ! $matched && $unmatched ) {
-            keep_line( $unmatched, $recipients );
+            $self->keep_line( $unmatched, $recipients );
         };
     }
     $recipients
 }
 
-sub sendmail($mail_from, $recipient, $body) {
+sub sendmail( $self, $mail_from, $subject, $recipient, $body) {
     my $msg = MIME::Lite->new(
         From     => $mail_from,
         To       => $recipient,
         #Cc       => 'some@other.com, some@more.com',
-        Subject  => 'Helloooooo, nurse!',
+        Subject  => $subject,
         Data     => $body,
         #Type     => 'image/gif',
         #Encoding => 'base64',
@@ -110,11 +125,15 @@ sub sendmail($mail_from, $recipient, $body) {
     $msg->send; # send via default
 }
 
-sub distribute_results( $recipients ) {
+# Call this when the input stream has ended to flush out all the stored
+# data
+sub flush( $self, $recipients=$self->recipients ) {
     for my $r (sort keys %$recipients) {
-        my $body;
+        my @body;
+        my @subject;
         for my $section (sort keys %{ $recipients->{$r} }) {
-            $body .= join "\n", "$section\n", @{ $recipients->{$r}->{$section} }, "";
+            push @subject, $section;
+            push @body, $section, "", @{ $recipients->{$r}->{$section} }, "";
         };
 
         if( $r =~ /^[>|]/ ) {
@@ -123,8 +142,8 @@ sub distribute_results( $recipients ) {
             die "File / pipe output is not yet supported";
         } else {
             # Send SMPT mail
-            # my $mail_from = $r;
-            sendmail( "Hmmm", $r, $body );
+            my $subject = "grep2mail: extracted lines for " . join ', ', @subject;
+            sendmail( $self->mail_from, $subject, $r, \@body );
         };
     }
 }
