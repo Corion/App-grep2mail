@@ -50,6 +50,11 @@ has 'rules' => (
     is => 'ro',
     default => sub { [] },
 );
+# Keys for the rules are
+# name
+# recipients
+# re
+# only_matching
 
 has 'mail_from' => (
     is => 'ro',
@@ -58,37 +63,27 @@ has 'mail_from' => (
 sub keep_line( $self, $rule, $recipients=$self->recipients ) {
     my $group = $rule->{category} || '';
     for my $recipient (@{ $rule->{recipients}}) {
-        push @{$recipients->{ $recipient }->{ $group }}, $_;
+        my $value = $rule->{ only_matching } ? $& : $_;
+        if( ! $recipients->{ $recipient }) {
+            if( $recipient =~ /^[|>]/ ) {
+                # Something that Perl can treat as filehandle:
+                open $recipients->{ $recipient }, $recipient
+                    or die "Couldn't open '$recipient': $!";
+            } else {
+                # Otherwise, it's a mail address and we accumulate in a hash
+                # per section
+                $recipients->{ $recipient } = { $group => [] };
+            };
+        };
+        if( 'HASH' eq ref($recipients->{ $recipient }) ) {
+            # mail
+            push @{$recipients->{ $recipient }->{ $group }}, $value;
+        } else {
+            # a filehandle
+            print { $recipients->{ $recipient } } $value;
+        }
     };
 }
-
-# The current implementation loops over each group and each RE for each
-# line of input. This is not horrible, but it means that each RE will be
-# executed for each line of input and each input line will be scanned multiple
-# times.
-#
-# First optimization stage, put all regular expressions into one large
-# regular expression, to stay within the RE engine for each line:
-#
-# my $combined = join "|", map { my $expr = join "|", map { qr/(?:$_)/ } @{$_->{re}}; qr/(?<$_->{name}>(?=.*?$expr))/ } @rules;
-# if( /$combined/ ) {
-#     my($leftmost) = keys %+;
-# }
-#
-# This tells us all REs that match this line, and by extension all rules that
-# we should handle.
-#
-# Later, build a regular expression that tells us whether a line matches at all
-# my $combined = join "|", map { my $expr = join "|", map { qr/(?:$_)/ } @{$_->{re}}; qr/(?<$_->{name}>$expr)/ } @rules;
-# if( /$combined/ ) {
-#     my($leftmost) = keys %+;
-# }
-# If we match that, either we have leftmost-non-overlapping matches and use that
-# directly, or we have an indication whether to try the rules up to the matched
-# group. This will be a second optimization stage.
-
-# Maybe consider moving this to App::Ack modules
-# Especially the file handling over blindly using <> would be nice
 
 sub scan( $self, $rules=$self->rules, $recipients=$self->recipients ) {
     my ($unmatched) = grep { $_->{unmatched} } @$rules;

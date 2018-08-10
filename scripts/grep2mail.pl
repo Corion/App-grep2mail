@@ -44,7 +44,8 @@ grep:
       - "| slack-post --channel #cat-pictures"
       - "| twitter-post --channel #cat-pictures"
     re:
-      - "\\bcat.*?\.jpg\b"
+      - "\\bcat.*?\\.jpg\\b"
+    only_matching: 1
   - name: "Send to file"
     recipient:
       - ">> log/file1.log"
