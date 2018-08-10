@@ -24,6 +24,9 @@ App::grep2mail - functionality for the grep2mail program
 This should maybe named C<grepfan> because it implements fanout for grep,
 and not just mailout.
 
+Currently, it separates out each section instead of mixing all the sections
+together as they are encountered in the input streams.
+
   use App::grep2mail 'scan', 'distribute_results';
 
   my $config = {
