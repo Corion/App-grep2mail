@@ -134,14 +134,13 @@ sub flush( $self, $recipients=$self->recipients ) {
             push @body, $section, "", @{ $recipients->{$r}->{$section} }, "";
         };
 
-        if( $r =~ /^[>|]/ ) {
-            # We should signal this while reading the configuration, not when
-            # trying to send the results
-            die "File / pipe output is not yet supported";
-        } else {
+        if( ref $recipients->{ $r } eq 'HASH' ) {
             # Send SMPT mail
             my $subject = "grep2mail: extracted lines for " . join ', ', @subject;
             sendmail( $self->mail_from, $subject, $r, \@body );
+        } else {
+            # Close our filehandle
+            close { $recipients->{ $r } };
         };
     }
 }
